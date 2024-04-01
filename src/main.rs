@@ -1,7 +1,11 @@
 use fltk::{prelude::*, *,app, button::Button, frame::Frame, group::Flex,window::Window };
-use std::{error::Error, process};
+use std::{error::Error};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, Write};
+use native_dialog::{FileDialog, MessageDialog, MessageType};
+use csv_index::RandomAccessSimple;
 
 struct CSVData{
    header_count:i32,
@@ -28,96 +32,120 @@ fn main() {
     app.run().unwrap();
 }
 
-fn choose_file(){
 
-    let mut chooser = dialog::FileChooser::new(
-        ".",                    // directory
-        "*.csv",                    // filter or pattern
-        dialog::FileChooserType::Single, // chooser type
-        "Select CSV",     // title
-    );
-    chooser.show();
-    chooser.window().set_pos(300, 300);
-    // Block until user picks something.
-    //     (The other way to do this is to use a callback())
-    //
-    while chooser.shown() {
-        app::wait();
-    }
-    // User hit cancel?
-    if chooser.value(1).is_none() {
-        println!("(User hit 'Cancel')");
-        return;
-    }
-    let file_path = chooser.value(1).unwrap();
+fn choose_file() {
 
-    if let Err(err) = parse_csv(file_path) {
-        println!("error running example: {}", err);
-        process::exit(1);
+    let path = FileDialog::new()
+    .set_location("~/Desktop")
+    .add_filter("CSV", &["csv", "CSV"])
+    .show_open_single_file()
+    .unwrap();
 
-    }
+    let path = match path {
+        Some(path) => path,
+        None => return,
+    };
 
-  
+    let yes = MessageDialog::new()
+        .set_type(MessageType::Info)
+        .set_title("Do you want to open the file?")
+        .set_text(&format!("{:#?}", path))
+        .show_confirm()
+        .unwrap();
+
+    if yes {
+        println!("{}",path.display().to_string());
+        parse_csv(path.display().to_string());
+    }    
+
 }
 
-fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>> {
+//TODO:: Stick with the ABC.
+//Write some error checking on the csv.
 
+fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>>{
+
+    let mut record_length = 0;
     let now: DateTime<Utc> = Utc::now();
 
     println!("UTC now is: {}", now);
+    let file_path_clone = file_path.clone();
 
     let mut rdr = csv::ReaderBuilder::new()
-    .has_headers(false)
+    .has_headers(true)
     .from_path(file_path)?;
+    let mut rdr2 = csv::ReaderBuilder::new()
+    .has_headers(true)
+    .from_path(file_path_clone)?;
 
+    let mut wtr = io::BufWriter::new(File::create("data.csv.idx")?);
+    RandomAccessSimple::create(&mut rdr, &mut wtr)?;
+    wtr.flush()?;
 
-    let complete: DateTime<Utc> = Utc::now();
-    let mut csv_data = Vec::new();
-    let mut record_length = 0;
-    let mut ittr = 0;
-    let mut header = HashMap::<usize,String>::new();
-    for result in rdr.records() {
+    let mut idx = RandomAccessSimple::open(File::open("data.csv.idx")?)?;
+    if idx.is_empty() {
+        return Err(From::from("expected a non-empty CSV index"));
+    }
+    let last = idx.len() - 1;
+    let pos = idx.get(last)?;
+    rdr.seek(pos)?;
 
+    // Read the next record.
+    if let Some(result) = rdr.records().next() {
         let record = result?;
-        if ittr == 0{
-            record_length = record.len();  
-        }
+        record_length = record.len();  
+        println!("{:?}", record_length);
+        println!("{:?}", record);
    
-        let mut map = HashMap::<String,String>::new();
-        for n in 0..record_length {
-            let value = record.get(n).as_ref().map(|x| &**x).unwrap_or("default string");
-            let key = n;
-            if ittr == 0{
-                header.insert(
-                    key,
+        let complete: DateTime<Utc> = Utc::now();
+        let mut csv_data = Vec::new();
+        csv_data.clear();
+        let mut ittr = 0;
+        
+        let mut header = HashMap::<usize,String>::new();
+        for result in rdr2.records() {
+    
+            let recordcsv = result?;
+       
+            let mut map = HashMap::<String,String>::new();
+            for n in 0..record_length {
+                let value = recordcsv.get(n).as_ref().map(|x| &**x).unwrap_or("default string");
+                let key = n;
+                if ittr == 0{
+                    header.insert(
+                        key,
+                        value.to_string(),
+                    );
+        
+                }
+                map.insert(
+                    header[&key].to_string(),
                     value.to_string(),
                 );
-    
+                //println!("{:?}", value);
             }
-            map.insert(
-                header[&key].to_string(),
-                value.to_string(),
-            );
-            //println!("{:?}", value);
+            csv_data.push(map);
+        
+            ittr = ittr+1;
         }
-        csv_data.push(map);
     
-        ittr = ittr+1;
+        let csv_data = CSVData{
+            header_count:record_length as i32,
+            headers:header,
+            csv_data:csv_data,
+        };
+    
+    
+        println!("UTC now is: {}", complete);
+        create_table(csv_data);
+        
+        Ok(())
+    
+    } else {
+        Err(From::from("expected at least one record but got none"))
     }
-
-    let csv_data = CSVData{
-        header_count:record_length as i32,
-        headers:header,
-        csv_data:csv_data,
-    };
-
-
-    println!("UTC now is: {}", complete);
-    create_table(csv_data);
     
-    Ok(())
 
-  
 }
 
 fn create_table(csvdata:CSVData){
@@ -130,7 +158,7 @@ fn create_table(csvdata:CSVData){
     let mut table = table::Table::default()
         .with_size(800 - 10, 600 - 10)
         .center_of(&wind);
-    table.set_rows(count);
+    table.set_rows(100);
     table.set_row_header(true);
     table.set_row_resize(true);
     //Count the header get the correct amount
