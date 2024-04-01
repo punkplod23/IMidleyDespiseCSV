@@ -1,0 +1,11 @@
+help:
+	echo "Hello World"
+
+compile:
+	cargo build
+run:
+	cargo run
+debug:
+	cargo with rust-gdb -- run
+clear:
+	cargo clear
