@@ -3,22 +3,11 @@ use std::{error::Error, process};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-
-struct Person {
-    town: String,
-    district: String,
-    lon: String,
-    lat: String,
-}
-
 struct CSVData{
    header_count:i32,
    headers:HashMap<usize,String>,
    csv_data:Vec<HashMap<String,String>>,
 }
-
-
-
 
 fn main() {
     let app = app::App::default();
@@ -97,7 +86,7 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>> {
         let mut map = HashMap::<String,String>::new();
         for n in 0..record_length {
             let value = record.get(n).as_ref().map(|x| &**x).unwrap_or("default string");
-            let mut key = n;
+            let key = n;
             if ittr == 0{
                 header.insert(
                     key,
@@ -116,7 +105,7 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>> {
         ittr = ittr+1;
     }
 
-    let csvData = CSVData{
+    let csv_data = CSVData{
         header_count:record_length as i32,
         headers:header,
         csv_data:csv_data,
@@ -124,7 +113,7 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>> {
 
 
     println!("UTC now is: {}", complete);
-    create_table(csvData);
+    create_table(csv_data);
     
     Ok(())
 
@@ -197,10 +186,10 @@ fn draw_header(txt: &str, x: i32, y: i32, w: i32, h: i32) {
 }
 
 fn get_value_by_column(txt: &CSVData,col:i32,row:i32) -> String {
-    let mut key = col as usize;
-    let mut keyr = row as usize;
+    let key = col as usize;
+    let keyr = row as usize;
     println!("{}",txt.headers[&key]);
-    let mut string_key = txt.headers[&key].to_string();
+    let string_key = txt.headers[&key].to_string();
     return txt.csv_data[keyr][&string_key].to_string();
 }
 

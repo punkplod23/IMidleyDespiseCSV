@@ -1,10 +1,13 @@
 help:
 	echo "Hello World"
-
+lint:
+	cargo check
 compile:
 	cargo build
 run:
 	cargo run
+release:
+	cargo run --release
 debug:
 	cargo with rust-gdb -- run
 clear:
