@@ -1,11 +1,13 @@
 use fltk::{prelude::*, *,app, button::Button, frame::Frame, group::Flex,window::Window };
-use std::{error::Error};
+use std::{error::Error,process};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use csv_index::RandomAccessSimple;
+use encoding_rs::WINDOWS_1252;
+use encoding_rs_io::DecodeReaderBytesBuilder;
 
 struct CSVData{
    header_count:i32,
@@ -55,28 +57,37 @@ fn choose_file() {
 
     if yes {
         println!("{}",path.display().to_string());
-        parse_csv(path.display().to_string());
+        if let Err(err) =  parse_csv(path.display().to_string()) {
+            println!("error running example: {}", err);
+            process::exit(1);
+        }
+       
     }    
 
 }
 
+
 //TODO:: Stick with the ABC.
 //Write some error checking on the csv.
-
 fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>>{
 
-    let mut record_length = 0;
+   
     let now: DateTime<Utc> = Utc::now();
 
     println!("UTC now is: {}", now);
     let file_path_clone = file_path.clone();
 
+    let file = File::open(file_path_clone)?;
+    let transcoded = DecodeReaderBytesBuilder::new()
+        .encoding(Some(WINDOWS_1252))
+        .build(file);
+
     let mut rdr = csv::ReaderBuilder::new()
     .has_headers(true)
     .from_path(file_path)?;
     let mut rdr2 = csv::ReaderBuilder::new()
-    .has_headers(true)
-    .from_path(file_path_clone)?;
+    .has_headers(false)
+    .from_reader(transcoded);
 
     let mut wtr = io::BufWriter::new(File::create("data.csv.idx")?);
     RandomAccessSimple::create(&mut rdr, &mut wtr)?;
@@ -93,7 +104,7 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>>{
     // Read the next record.
     if let Some(result) = rdr.records().next() {
         let record = result?;
-        record_length = record.len();  
+        let record_length = record.len();  
         println!("{:?}", record_length);
         println!("{:?}", record);
    
@@ -125,7 +136,6 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>>{
                 //println!("{:?}", value);
             }
             csv_data.push(map);
-        
             ittr = ittr+1;
         }
     
@@ -138,7 +148,7 @@ fn parse_csv(file_path: String) -> Result<(), Box<dyn Error>>{
     
         println!("UTC now is: {}", complete);
         create_table(csv_data);
-        
+
         Ok(())
     
     } else {
@@ -158,7 +168,7 @@ fn create_table(csvdata:CSVData){
     let mut table = table::Table::default()
         .with_size(800 - 10, 600 - 10)
         .center_of(&wind);
-    table.set_rows(100);
+    table.set_rows(count);
     table.set_row_header(true);
     table.set_row_resize(true);
     //Count the header get the correct amount
@@ -171,7 +181,6 @@ fn create_table(csvdata:CSVData){
     wind.make_resizable(true);
     wind.end();
     wind.show();
-  
 
      // Called when the table is drawn then when it's redrawn due to events
      table.draw_cell(move |t, ctx, row, col, x, y, w, h| match ctx {
@@ -192,7 +201,6 @@ fn create_table(csvdata:CSVData){
         ), // Data in cells
         _ => (),
     });
-
     app.run().unwrap();
 
 }
@@ -241,4 +249,5 @@ fn draw_data(txt: &CSVData,row:i32,col:i32, x: i32, y: i32, w: i32, h: i32, sele
 
     
     draw::pop_clip();
+
 }
