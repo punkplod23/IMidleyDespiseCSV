@@ -1,0 +1,18 @@
+help:
+	echo "Hello World"
+lint:
+	cargo check
+compile:
+	cargo build
+run:
+	cargo run
+test:
+	cargo test
+test-coverage:
+	cargo tarpaulin --out Html	
+release:
+	cargo build --release
+debug:
+	cargo with rust-gdb -- run
+clean:
+	cargo clean
