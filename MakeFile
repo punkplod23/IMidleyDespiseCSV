@@ -1,18 +1,33 @@
 help:
 	echo "Hello World"
+
+fix64fix:
+	 rustup default stable-x86_64-pc-windows-gnu
+
 lint:
 	cargo check
+
 compile:
 	cargo build
+
 run:
 	cargo run
+
+lint:
+	cargo clippy
+
 test:
 	cargo test
-test-coverage:
+
+testcoverage:
 	cargo tarpaulin --out Html	
+
 release:
 	cargo build --release
+
 debug:
 	cargo with rust-gdb -- run
+
 clean:
 	cargo clean
+	
